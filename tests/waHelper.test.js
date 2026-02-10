@@ -1,9 +1,7 @@
 import { jest } from '@jest/globals';
 import { EventEmitter } from 'events';
 
-let safeSendMessage;
-let sendWAFile;
-let isUnsupportedVersionError;
+let safeSendMessage, sendWAFile, isUnsupportedVersionError;
 
 beforeAll(async () => {
   ({ safeSendMessage, sendWAFile, isUnsupportedVersionError } = await import('../src/utils/waHelper.js'));

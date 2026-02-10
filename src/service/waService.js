@@ -2055,8 +2055,10 @@ export function createHandleMessage(waClient, options = {}) {
       }
     }
 
-  // ========== VALIDASI ADMIN COMMAND ==========
-  // Admin command validation has been removed - commands are now validated based on database roles
+  // ========== ADMIN COMMAND VALIDATION ==========
+  // All admin commands are now denied since admin WhatsApp functionality was removed.
+  // Commands in the adminCommands list are restricted and only accessible through database roles.
+  // The "thisgroup#" command is exempted as it has its own authorization logic.
   if (
     isAdminCommand &&
     !text.toLowerCase().startsWith("thisgroup#")
