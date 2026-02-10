@@ -31,19 +31,15 @@ export function isValidPhoneDigits(token, minLength = minPhoneDigitLength) {
   return extractPhoneDigits(token).length >= minLength;
 }
 
-export function getAdminWhatsAppList() {
-  return (process.env.ADMIN_WHATSAPP || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
-    .map(wid => (wid.endsWith('@c.us') ? wid : wid.replace(/\D/g, '') + '@c.us'))
-    .filter(wid => wid.length > 10);
-}
+// Admin WhatsApp functions removed - admin functionality no longer supported
 
-export async function sendWAReport(waClient, message, chatIds = null) {
-  const targets = chatIds
-    ? (Array.isArray(chatIds) ? chatIds : [chatIds])
-    : getAdminWhatsAppList();
+export async function sendWAReport(waClient, message, chatIds) {
+  // chatIds is now required - no default to admin list
+  if (!chatIds) {
+    console.warn('[sendWAReport] No chatIds provided, skipping send');
+    return;
+  }
+  const targets = Array.isArray(chatIds) ? chatIds : [chatIds];
   for (const target of targets) {
     if (!isValidWid(target)) {
       console.warn(`[SKIP WA] Invalid wid: ${target}`);
@@ -64,14 +60,15 @@ export async function sendWAFile(
   waClient,
   buffer,
   filename,
-  chatIds = null,
+  chatIds,
   mimeType
 ) {
-  const targets = chatIds
-    ? Array.isArray(chatIds)
-      ? chatIds
-      : [chatIds]
-    : getAdminWhatsAppList();
+  // chatIds is now required - no default to admin list
+  if (!chatIds) {
+    console.warn('[sendWAFile] No chatIds provided, skipping send');
+    return;
+  }
+  const targets = Array.isArray(chatIds) ? chatIds : [chatIds];
   if (typeof waClient?.waitForWaReady === 'function') {
     await waClient.waitForWaReady();
   } else if (
@@ -115,103 +112,7 @@ export async function sendWAFile(
   }
 }
 
-// Cek apakah nomor WhatsApp adalah admin
-export function isAdminWhatsApp(number) {
-  const adminNumbers = (process.env.ADMIN_WHATSAPP || "")
-    .split(",")
-    .map((n) => n.trim())
-    .filter(Boolean)
-    .map((n) => (n.endsWith("@c.us") ? n : n.replace(/\D/g, "") + "@c.us"));
-  const normalized =
-    typeof number === "string"
-      ? number.endsWith("@c.us")
-        ? number
-        : number.replace(/\D/g, "") + "@c.us"
-      : "";
-  return adminNumbers.includes(normalized);
-}
-
-/**
- * Get client IDs (LIDs) associated with admin WhatsApp numbers
- * Returns an array of unique client_ids from users with admin WhatsApp numbers
- */
-export async function getAdminClientIds(queryFn) {
-  const adminWaList = getAdminWhatsAppList();
-  if (!adminWaList.length) return [];
-  
-  const clientIds = new Set();
-  
-  // Import query function if we need it
-  let query = queryFn;
-  if (!query || typeof query !== 'function') {
-    // Fallback to importing from repository/db.js
-    const { query: dbQuery } = await import('../repository/db.js');
-    query = dbQuery;
-  }
-  
-  // Get normalized admin numbers (just digits with 62 prefix)
-  const adminDigits = adminWaList.map(wa => wa.replace(/\D/g, ''));
-  
-  try {
-    // Query users table to find client_ids for admin WhatsApp numbers
-    const { rows } = await query(
-      `SELECT DISTINCT client_id 
-       FROM "user" 
-       WHERE whatsapp = ANY($1::text[]) 
-         AND client_id IS NOT NULL 
-         AND client_id <> ''`,
-      [adminDigits]
-    );
-    
-    rows.forEach(row => {
-      if (row.client_id) {
-        clientIds.add(row.client_id);
-      }
-    });
-  } catch (error) {
-    console.error('[getAdminClientIds] Error fetching admin client IDs:', error);
-  }
-  
-  return Array.from(clientIds);
-}
-
-/**
- * Check if a user (by WhatsApp number) has the same client_id (LID) as any admin user
- */
-export async function hasSameClientIdAsAdmin(waNumber, queryFn) {
-  if (!waNumber) return false;
-  
-  // Import query function if we need it
-  let query = queryFn;
-  if (!query || typeof query !== 'function') {
-    const { query: dbQuery } = await import('../repository/db.js');
-    query = dbQuery;
-  }
-  
-  // Normalize the WhatsApp number
-  const normalized = String(waNumber).replace(/\D/g, '');
-  
-  try {
-    // Get admin client IDs
-    const adminClientIds = await getAdminClientIds(query);
-    if (!adminClientIds.length) return false;
-    
-    // Check if user has one of the admin client IDs
-    const { rows } = await query(
-      `SELECT 1 
-       FROM "user" 
-       WHERE whatsapp = $1 
-         AND client_id = ANY($2::text[])
-       LIMIT 1`,
-      [normalized, adminClientIds]
-    );
-    
-    return rows.length > 0;
-  } catch (error) {
-    console.error('[hasSameClientIdAsAdmin] Error checking user client ID:', error);
-    return false;
-  }
-}
+// Admin WhatsApp check functions removed - admin functionality no longer supported
 
 // Konversi nomor ke WhatsAppID (xxxx@c.us)
 export function formatToWhatsAppId(nohp) {
@@ -392,27 +293,7 @@ export function formatClientData(obj, title = "") {
   return dataText;
 }
 
-const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
-  .split(",")
-  .map((n) => n.trim())
-  .filter(Boolean);
-
-export function getAdminWAIds() {
-  return ADMIN_WHATSAPP.map((n) =>
-    n.endsWith("@c.us") ? n : n.replace(/[^0-9]/g, "") + "@c.us"
-  );
-}
-
-// Normalisasi nomor admin ke awalan 0 (tanpa @c.us)
-export function getAdminWANumbers() {
-  const numbers = ADMIN_WHATSAPP.map((n) => {
-    let num = String(n).replace(/[^0-9]/g, "");
-    if (num.startsWith("62")) num = "0" + num.slice(2);
-    if (!num.startsWith("0")) num = "0" + num;
-    return num;
-  });
-  return Array.from(new Set(numbers));
-}
+// Admin WhatsApp constants and functions removed
 
 // Send WhatsApp message with basic error handling
 async function waitUntilReady(waClient, timeout = 10000) {
