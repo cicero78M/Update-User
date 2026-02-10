@@ -76,8 +76,6 @@ import {
   setBindTimeout,
   operatorOptionSessions,
   setOperatorOptionTimeout,
-  adminOptionSessions,
-  setAdminOptionTimeout,
   setUserRequestLinkTimeout,
   setSession,
   getSession,
@@ -93,15 +91,12 @@ import {
   formatUserData,
 } from "../utils/utilsHelper.js";
 import {
-  isAdminWhatsApp,
   formatToWhatsAppId,
   formatClientData,
   safeSendMessage,
-  getAdminWAIds,
   isUnsupportedVersionError,
   sendWAReport,
   sendWithClientFallback,
-  hasSameClientIdAsAdmin,
 } from "../utils/waHelper.js";
 import {
   IG_PROFILE_REGEX,
@@ -1074,16 +1069,13 @@ export function flushAdminNotificationQueue() {
     "debug",
     buildWaStructuredLog({
       label: "WA",
-      event: "wa_admin_notifications_flush",
+      event: "wa_admin_notifications_cleared",
       queuedCount: adminNotificationQueue.length,
     }),
     { debugOnly: true }
   );
-  adminNotificationQueue.splice(0).forEach((msg) => {
-    for (const wa of getAdminWAIds()) {
-      safeSendMessage(waClient, wa, msg);
-    }
-  });
+  // Admin notification processing removed - clear queue without sending
+  adminNotificationQueue.splice(0);
 }
 
 async function waitForClientReady(client, timeoutMs) {
@@ -1542,16 +1534,6 @@ export function createHandleMessage(waClient, options = {}) {
       typeof msg.isMyContact === "boolean" ? msg.isMyContact : null;
     const isGroupChat = chatId?.endsWith("@g.us");
     const senderId = msg.author || chatId;
-    const isAdmin = isAdminWhatsApp(senderId);
-    const normalizedSenderAdminId =
-      typeof senderId === "string"
-        ? senderId.endsWith("@c.us")
-          ? senderId
-          : senderId.replace(/\D/g, "") + "@c.us"
-        : "";
-    const adminWaId = isAdmin
-      ? getAdminWAIds().find((wid) => wid === normalizedSenderAdminId) || null
-      : null;
     console.log(`${clientLabel} Incoming message from ${chatId}: ${text}`);
     if (msg.isStatus || chatId === "status@broadcast") {
       console.log(`${clientLabel} Ignored status message from ${chatId}`);
@@ -1606,8 +1588,7 @@ export function createHandleMessage(waClient, options = {}) {
       Boolean(waBindSessions[chatId]) ||
       Boolean(updateUsernameSession[chatId]) ||
       Boolean(userRequestLinkSessions[chatId]) ||
-      Boolean(operatorOptionSessions[chatId]) ||
-      Boolean(adminOptionSessions[chatId]);
+      Boolean(operatorOptionSessions[chatId]);
     const hadSessionAtStart = allowUserMenu ? hasAnySession() : false;
     let mutualReminderComputed = false;
     let mutualReminderResult = {
@@ -1999,50 +1980,7 @@ export function createHandleMessage(waClient, options = {}) {
       return;
     }
 
-    // ===== Pilihan awal untuk nomor admin =====
-    if (adminOptionSessions[chatId]) {
-      if (/^1$/.test(text.trim())) {
-        delete adminOptionSessions[chatId];
-        if (!allowUserMenu) {
-          return;
-        }
-        const pengirim = chatId.replace(/[^0-9]/g, "");
-        const userByWA = await userModel.findUserByWhatsApp(pengirim);
-        const salam = getGreeting();
-        if (userByWA) {
-          userMenuContext[chatId] = {
-            step: "confirmUserByWaUpdate",
-            user_id: userByWA.user_id,
-          };
-          const msg = `${salam}, Bapak/Ibu\n${formatUserSummary(userByWA)}\n\nApakah Anda ingin melakukan perubahan data?\nBalas *ya* untuk memulai update atau *tidak* untuk melewati.`;
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        } else {
-          userMenuContext[chatId] = { step: "inputUserId" };
-          const msg =
-            `${salam}! Nomor WhatsApp Anda belum terdaftar.` +
-            "\n\nBalas pesan ini dengan memasukan NRP Anda," +
-            "\n\n*Contoh Pesan Balasan : 87020990*";
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        }
-        return;
-      }
-      await waClient.sendMessage(
-        chatId,
-        "Balas *1* untuk perubahan data user."
-      );
-      setAdminOptionTimeout(chatId);
-      return;
-    }
+    // ===== Admin option menu removed - no longer supported =====
 
   if (session && session.menu === "wabotditbinmas") {
     await wabotDitbinmasHandlers[session.step || "main"](
@@ -2060,21 +1998,11 @@ export function createHandleMessage(waClient, options = {}) {
     normalizedWabotCmd === "wabotditbinmas" ||
     normalizedWabotCmd === "ditbinmas"
   ) {
-    // Check if user is admin
-    if (!senderId || !isAdminWhatsApp(senderId)) {
-      await waClient.sendMessage(
-        chatId,
-        "❌ Fitur ini hanya tersedia untuk administrator."
-      );
-      return;
-    }
-
-    setSession(chatId, {
-      menu: "wabotditbinmas",
-      step: "main",
-      time: Date.now(),
-    });
-    await wabotDitbinmasHandlers.main(getSession(chatId), chatId, "", waClient);
+    // This feature has been removed as part of admin WhatsApp removal
+    await waClient.sendMessage(
+      chatId,
+      "❌ Fitur ini tidak lagi tersedia."
+    );
     return;
   }
 
@@ -2127,10 +2055,12 @@ export function createHandleMessage(waClient, options = {}) {
       }
     }
 
-  // ========== VALIDASI ADMIN COMMAND ==========
+  // ========== ADMIN COMMAND VALIDATION ==========
+  // All admin commands are now denied since admin WhatsApp functionality was removed.
+  // Commands in the adminCommands list are restricted and only accessible through database roles.
+  // The "thisgroup#" command is exempted as it has its own authorization logic.
   if (
     isAdminCommand &&
-    !isAdmin &&
     !text.toLowerCase().startsWith("thisgroup#")
   ) {
     await waClient.sendMessage(
@@ -3469,21 +3399,6 @@ export function createHandleMessage(waClient, options = {}) {
   }
 
   if (isFirstTime) {
-    if (isAdmin) {
-      adminOptionSessions[chatId] = {};
-      setAdminOptionTimeout(chatId);
-      const salam = getGreeting();
-        await safeSendMessage(
-          waClient,
-          chatId,
-          `${salam}! Nomor ini terdaftar sebagai *admin*.` +
-            "\n1️⃣ Menu Client" +
-            "\n2️⃣ Menu Operator" +
-            "\n3️⃣ Perubahan Data Username" +
-            "\nBalas angka *1*, *2*, atau *3*."
-        );
-      return;
-    }
     if (!operatorRow && normalizedUserWaId) {
       superAdminRow = await findBySuperAdmin(normalizedUserWaId);
     }
@@ -3792,7 +3707,6 @@ export async function handleGatewayMessage(msg) {
 
   const senderId = msg.author || chatId;
   const normalizedText = text.trim().toLowerCase();
-  const isAdmin = isAdminWhatsApp(senderId);
   const session = getSession(chatId);
 
   if (session?.menu === "satbinmasofficial_gateway") {
@@ -3817,21 +3731,10 @@ export async function handleGatewayMessage(msg) {
   }
 
   if (normalizedText.startsWith("#satbinmasofficial")) {
-    if (!senderId || !isAdminWhatsApp(senderId)) {
-      await waGatewayClient.sendMessage(
-        chatId,
-        "❌ Fitur ini hanya tersedia untuk administrator."
-      );
-      return;
-    }
-
-    // Note: This feature previously relied on dashboard_user for client_id mapping.
-    // After dashboard removal, admins need to specify client_id explicitly.
-    // TODO: Implement client_id selection mechanism for satbinmas official account management
+    // This feature has been removed as part of admin WhatsApp removal
     await waGatewayClient.sendMessage(
       chatId,
-      "ℹ️ Fitur ini sedang dalam perbaikan setelah penghapusan sistem dashboard.\n" +
-      "Untuk sementara, silakan hubungi developer untuk konfigurasi akun resmi Satbinmas."
+      "❌ Fitur ini tidak lagi tersedia."
     );
     return;
   }

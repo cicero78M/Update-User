@@ -14,10 +14,8 @@ import { extractVideoId } from "../../utils/tiktokHelper.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+// Admin WhatsApp parsing removed - functionality no longer supported
+const ADMIN_WHATSAPP = [];
 
 
 /**

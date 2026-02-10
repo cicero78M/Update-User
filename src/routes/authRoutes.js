@@ -6,9 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import * as penmasUserModel from "../model/penmasUserModel.js";
 import * as userModel from "../model/userModel.js";
 import {
-  isAdminWhatsApp,
   formatToWhatsAppId,
-  getAdminWAIds,
   minPhoneDigitLength,
   normalizeWhatsappNumber,
   safeSendMessage,
@@ -21,20 +19,7 @@ import waClient, {
 import { insertVisitorLog } from "../model/visitorLogModel.js";
 import { insertLoginLog } from "../model/loginLogModel.js";
 
-async function notifyAdmin(message) {
-  try {
-    await waitForWaReady();
-  } catch (err) {
-    console.warn(
-      `[WA] Queueing admin notification: ${err.message}`
-    );
-    queueAdminNotification(message);
-    return;
-  }
-  for (const wa of getAdminWAIds()) {
-    safeSendMessage(waClient, wa, message);
-  }
-}
+// Admin notifications removed - no longer supported
 
 const router = express.Router();
 
@@ -102,73 +87,57 @@ router.post('/penmas-login', async (req, res) => {
   await insertLoginLog({
     actorId: user.user_id,
     loginType: 'operator',
-    loginSource: 'web'
-  });
-  const time = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-  notifyAdmin(
-    `\uD83D\uDD11 Login Penmas: ${user.username} (${user.role})\nWaktu: ${time}`
-  );
-  return res.json({ success: true, token, user: payload });
-});
-
-router.post("/login", async (req, res) => {
-  const { client_id, client_operator } = req.body;
-  // Validasi input
-  if (!client_id || !client_operator) {
-    const reason = "client_id dan client_operator wajib diisi";
-    const time = new Date().toLocaleString("id-ID", {
-      timeZone: "Asia/Jakarta",
+      loginSource: 'web'
     });
-    notifyAdmin(
-      `❌ Login gagal\nAlasan: ${reason}\nID: ${client_id || "-"}\nOperator: ${
-        client_operator || "-"}\nWaktu: ${time}`
-    );
-    return res
-      .status(400)
-      .json({ success: false, message: reason });
-  }
-  // Cari client berdasarkan ID saja
+    const time = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+    // Admin notification removed
+    return res.json({ success: true, token, user: payload });
+  });
+
+  router.post("/login", async (req, res) => {
+    const { client_id, client_operator } = req.body;
+    // Validasi input
+    if (!client_id || !client_operator) {
+      const reason = "client_id dan client_operator wajib diisi";
+      // Admin notification removed
+      return res
+        .status(400)
+        .json({ success: false, message: reason });
+    }
+    // Cari client berdasarkan ID saja
   const { rows } = await query(
     "SELECT * FROM clients WHERE client_id = $1",
     [client_id]
   );
-  const client = rows[0];
-  // Jika client tidak ditemukan
-  if (!client) {
-    const reason = "client_id tidak ditemukan";
-    const time = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-    notifyAdmin(
-      `❌ Login gagal\nAlasan: ${reason}\nID: ${client_id}\nOperator: ${client_operator}\nWaktu: ${time}`
-    );
-    return res.status(401).json({
-      success: false,
-      message: `Login gagal: ${reason}`,
-    });
-  }
+    const client = rows[0];
+    // Jika client tidak ditemukan
+    if (!client) {
+      const reason = "client_id tidak ditemukan";
+      // Admin notification removed
+      return res.status(401).json({
+        success: false,
+        message: `Login gagal: ${reason}`,
+      });
+    }
 
-  // Cek operator yang diberikan: boleh operator asli atau admin
-  const inputId = formatToWhatsAppId(client_operator);
-  const dbOperator = client.client_operator
-    ? formatToWhatsAppId(client.client_operator)
-    : "";
+    // Cek operator yang diberikan: boleh operator asli
+    const inputId = formatToWhatsAppId(client_operator);
+    const dbOperator = client.client_operator
+      ? formatToWhatsAppId(client.client_operator)
+      : "";
 
-  const isValidOperator =
-    inputId === dbOperator ||
-    client_operator === client.client_operator ||
-    isAdminWhatsApp(inputId) ||
-    isAdminWhatsApp(client_operator);
+    const isValidOperator =
+      inputId === dbOperator ||
+      client_operator === client.client_operator;
 
-  if (!isValidOperator) {
-    const reason = "client operator tidak valid";
-    const time = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-    notifyAdmin(
-      `❌ Login gagal\nAlasan: ${reason}\nID: ${client_id}\nOperator: ${client_operator}\nWaktu: ${time}`
-    );
-    return res.status(401).json({
-      success: false,
-      message: `Login gagal: ${reason}`,
-    });
-  }
+    if (!isValidOperator) {
+      const reason = "client operator tidak valid";
+      // Admin notification removed
+      return res.status(401).json({
+        success: false,
+        message: `Login gagal: ${reason}`,
+      });
+    }
 
   // Generate JWT token
   const role =
@@ -202,9 +171,7 @@ router.post("/login", async (req, res) => {
     loginSource: 'mobile'
   });
   const time = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-  notifyAdmin(
-    `\uD83D\uDD11 Login: ${client.nama} (${client.client_id})\nOperator: ${client_operator}\nWaktu: ${time}`
-  );
+  // Admin notification removed
   // Kembalikan token dan data client
   return res.json({ success: true, token, client: payload });
 });
@@ -299,9 +266,7 @@ router.get('/open', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   const ua = req.headers['user-agent'] || '';
   await insertVisitorLog({ ip, userAgent: ua });
-  notifyAdmin(
-    `\uD83D\uDD0D Web dibuka\nIP: ${ip}\nUA: ${ua}\nWaktu: ${time}`
-  );
+  // Admin notification removed
   return res.json({ success: true });
 });
 
