@@ -61,6 +61,7 @@ import { getUsersByClient } from "../model/userModel.js";
 
 // Handler Imports
 import { userMenuHandlers } from "../handler/menu/userMenuHandlers.js";
+import { wabotDitbinmasHandlers } from "../handler/menu/wabotDitbinmasHandlers.js";
 
 import { handleFetchKomentarTiktokBatch } from "../handler/fetchengagement/fetchCommentTiktok.js";
 
@@ -2000,7 +2001,7 @@ export function createHandleMessage(waClient, options = {}) {
 
     // ===== Pilihan awal untuk nomor admin =====
     if (adminOptionSessions[chatId]) {
-      if (/^3$/.test(text.trim())) {
+      if (/^1$/.test(text.trim())) {
         delete adminOptionSessions[chatId];
         if (!allowUserMenu) {
           return;
@@ -2037,7 +2038,7 @@ export function createHandleMessage(waClient, options = {}) {
       }
       await waClient.sendMessage(
         chatId,
-        "Balas *3* untuk perubahan data user."
+        "Balas *1* untuk perubahan data user."
       );
       setAdminOptionTimeout(chatId);
       return;
