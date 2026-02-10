@@ -1,5 +1,6 @@
 import { getClientContactsById } from '../repository/clientContactRepository.js';
-import { formatToWhatsAppId, getAdminWAIds } from './waHelper.js';
+import { formatToWhatsAppId } from './waHelper.js';
+// getAdminWAIds import removed - admin functionality no longer supported
 
 function normalizeRecipient(value) {
   if (!value) return null;
@@ -32,9 +33,7 @@ export async function buildClientRecipientSet(
   const recipients = new Set();
   const contacts = await getClientContactsById(clientId);
 
-  if (includeAdmins) {
-    addRecipients(recipients, getAdminWAIds());
-  }
+  // Admin WhatsApp functionality removed - includeAdmins parameter now ignored
 
   if (includeSuper) {
     addRecipients(recipients, contacts.clientSuper);

@@ -1069,16 +1069,13 @@ export function flushAdminNotificationQueue() {
     "debug",
     buildWaStructuredLog({
       label: "WA",
-      event: "wa_admin_notifications_flush",
+      event: "wa_admin_notifications_cleared",
       queuedCount: adminNotificationQueue.length,
     }),
     { debugOnly: true }
   );
-  adminNotificationQueue.splice(0).forEach((msg) => {
-    for (const wa of getAdminWAIds()) {
-      safeSendMessage(waClient, wa, msg);
-    }
-  });
+  // Admin notification processing removed - clear queue without sending
+  adminNotificationQueue.splice(0);
 }
 
 async function waitForClientReady(client, timeoutMs) {

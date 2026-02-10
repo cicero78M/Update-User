@@ -9,10 +9,8 @@ import { upsertInstaPost as upsertInstaPostKhusus } from "../../model/instaPostK
 import { upsertInstaPost } from "../../model/instaPostModel.js";
 import { extractInstagramShortcode } from "../../utils/utilsHelper.js";
 
-const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+// Admin WhatsApp parsing removed - functionality no longer supported
+const ADMIN_WHATSAPP = [];
 
 const limit = pLimit(6);
 

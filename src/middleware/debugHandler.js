@@ -23,12 +23,9 @@ function safeStringify(obj) {
   }
 }
 
+// Admin WhatsApp parsing removed - functionality no longer supported
 function parseAdminWA() {
-  return (process.env.ADMIN_WHATSAPP || "")
-    .split(",")
-    .map((n) => n.trim())
-    .filter(Boolean)
-    .map((n) => (n.endsWith("@c.us") ? n : n.replace(/\D/g, "") + "@c.us"));
+  return [];
 }
 
 /**
