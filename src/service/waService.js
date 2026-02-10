@@ -61,15 +61,6 @@ import { getUsersByClient } from "../model/userModel.js";
 
 // Handler Imports
 import { userMenuHandlers } from "../handler/menu/userMenuHandlers.js";
-import {
-  BULK_STATUS_HEADER_REGEX,
-  clientRequestHandlers,
-  processBulkDeletionRequest,
-} from "../handler/menu/clientRequestHandlers.js";
-import { oprRequestHandlers } from "../handler/menu/oprRequestHandlers.js";
-import { dashRequestHandlers } from "../handler/menu/dashRequestHandlers.js";
-import { dirRequestHandlers } from "../handler/menu/dirRequestHandlers.js";
-import { wabotDitbinmasHandlers } from "../handler/menu/wabotDitbinmasHandlers.js";
 
 import { handleFetchKomentarTiktokBatch } from "../handler/fetchengagement/fetchCommentTiktok.js";
 
@@ -100,10 +91,6 @@ import {
   getGreeting,
   formatUserData,
 } from "../utils/utilsHelper.js";
-import {
-  handleComplaintMessageIfApplicable,
-  isGatewayComplaintForward,
-} from "./waAutoComplaintService.js";
 import {
   isAdminWhatsApp,
   formatToWhatsAppId,
@@ -254,49 +241,7 @@ function formatCurrencyId(value) {
   return `Rp ${numberFormatter.format(numeric)}`;
 }
 
-async function startAdminOprRequestSelection({
-  chatId,
-  waClient,
-  clientLabel,
-}) {
-  const orgClients = await clientService.findAllClientsByType("org");
-  const availableClients = (orgClients || [])
-    .filter((client) => client?.client_id)
-    .map((client) => ({
-      client_id: String(client.client_id).toUpperCase(),
-      nama: client.nama || client.client_id,
-    }));
 
-  if (availableClients.length === 0) {
-    await waClient.sendMessage(
-      chatId,
-      "❌ Tidak ada client bertipe Org yang tersedia untuk menu operator."
-    );
-    return false;
-  }
-
-  setSession(chatId, {
-    menu: "oprrequest",
-    step: "choose_client",
-    opr_clients: availableClients,
-  });
-
-  await runMenuHandler({
-    handlers: oprRequestHandlers,
-    menuName: "oprrequest",
-    session: getSession(chatId),
-    chatId,
-    text: "",
-    waClient,
-    clientLabel,
-    args: [pool, userModel],
-    invalidStepMessage:
-      "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
-    failureMessage:
-      "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
-  });
-  return true;
-}
 
 async function runMenuHandler({
   handlers,
@@ -1584,63 +1529,6 @@ waGatewayClient.on("change_state", (state) => {
 // =======================
 // MESSAGE HANDLER UTAMA
 // =======================
-async function handleClientRequestSessionStep({
-  session,
-  chatId,
-  text,
-  waClient,
-  clientLabel,
-  pool,
-  userModel,
-  clientService,
-  migrateUsersFromFolder,
-  checkGoogleSheetCsvStatus,
-  importUsersFromGoogleSheet,
-  fetchAndStoreInstaContent,
-  fetchAndStoreTiktokContent,
-  formatClientData,
-  handleFetchLikesInstagram,
-  handleFetchKomentarTiktokBatch,
-}) {
-  if (!session || session.menu !== "clientrequest") {
-    return false;
-  }
-
-  if ((text || "").toLowerCase() === "batal") {
-    clearSession(chatId);
-    await safeSendMessage(waClient, chatId, "✅ Menu Client ditutup.");
-    return true;
-  }
-
-  await runMenuHandler({
-    handlers: clientRequestHandlers,
-    menuName: "clientrequest",
-    session,
-    chatId,
-    text,
-    waClient,
-    clientLabel,
-    args: [
-      pool,
-      userModel,
-      clientService,
-      migrateUsersFromFolder,
-      checkGoogleSheetCsvStatus,
-      importUsersFromGoogleSheet,
-      fetchAndStoreInstaContent,
-      fetchAndStoreTiktokContent,
-      formatClientData,
-      handleFetchLikesInstagram,
-      handleFetchKomentarTiktokBatch,
-    ],
-    invalidStepMessage:
-      "⚠️ Sesi menu client tidak dikenali. Ketik *clientrequest* ulang atau *batal*.",
-    failureMessage:
-      "❌ Terjadi kesalahan pada menu client. Ketik *clientrequest* ulang untuk memulai kembali.",
-  });
-
-  return true;
-}
 
 export function createHandleMessage(waClient, options = {}) {
   const { allowUserMenu = true, clientLabel = "[WA]", markSeen = true } = options;
@@ -1707,24 +1595,7 @@ export function createHandleMessage(waClient, options = {}) {
     let session = getSession(chatId);
 
     if (isGroupChat) {
-      const handledGroupComplaint = await handleComplaintMessageIfApplicable({
-        text,
-        allowUserMenu,
-        session,
-        isAdmin,
-        initialIsMyContact,
-        senderId,
-        chatId,
-        adminOptionSessions,
-        setSession,
-        getSession,
-        waClient,
-        pool,
-        userModel,
-      });
-      if (!handledGroupComplaint) {
-        console.log(`${clientLabel} Ignored group message from ${chatId}`);
-      }
+      console.log(`${clientLabel} Ignored group message from ${chatId}`);
       return;
     }
 
@@ -2056,47 +1927,6 @@ export function createHandleMessage(waClient, options = {}) {
       return true;
     };
 
-    if (
-      trimmedText &&
-      BULK_STATUS_HEADER_REGEX.test(trimmedText) &&
-      (!session || session.menu === "clientrequest")
-    ) {
-      const nextSession = {
-        ...(session || {}),
-        menu: "clientrequest",
-        step: "bulkStatus_process",
-      };
-      setSession(chatId, nextSession);
-      session = getSession(chatId);
-      await runMenuHandler({
-        handlers: clientRequestHandlers,
-        menuName: "clientrequest",
-        session,
-        chatId,
-        text: trimmedText,
-        waClient,
-        clientLabel,
-        args: [
-          pool,
-          userModel,
-          clientService,
-          migrateUsersFromFolder,
-          checkGoogleSheetCsvStatus,
-          importUsersFromGoogleSheet,
-          fetchAndStoreInstaContent,
-          fetchAndStoreTiktokContent,
-          formatClientData,
-          handleFetchLikesInstagram,
-          handleFetchKomentarTiktokBatch,
-        ],
-        invalidStepMessage:
-          "⚠️ Sesi menu client tidak dikenali. Ketik *clientrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu client. Ketik *clientrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
-
     if (allowUserMenu && userRequestLinkSessions[chatId]) {
       const selection = userRequestLinkSessions[chatId];
       if (lowerText === "batal") {
@@ -2160,9 +1990,6 @@ export function createHandleMessage(waClient, options = {}) {
     }
     if (session && lowerText === "batal") {
       const menuLabels = {
-        oprrequest: "Menu Operator",
-        dirrequest: "Menu Direktorat",
-        clientrequest: "Menu Client",
         wabotditbinmas: "Menu Wabot Ditbinmas",
       };
       clearSession(chatId);
@@ -2171,93 +1998,8 @@ export function createHandleMessage(waClient, options = {}) {
       return;
     }
 
-    // ===== Pilihan awal untuk nomor operator =====
-    if (operatorOptionSessions[chatId]) {
-      if (/^1$/.test(text.trim())) {
-        delete operatorOptionSessions[chatId];
-        setSession(chatId, { menu: "oprrequest", step: "main" });
-        await runMenuHandler({
-          handlers: oprRequestHandlers,
-          menuName: "oprrequest",
-          session: getSession(chatId),
-          chatId,
-          text: `┏━━━ *MENU OPERATOR CICERO* ━━━┓\n👮‍♂️  Akses khusus operator client.\n\n1️⃣ Manajemen User\n2️⃣ Manajemen Amplifikasi\n\nKetik *angka menu* di atas, atau *batal* untuk keluar.\n┗━━━━━━━━━━━━━━━━━━━━━━━━┛`,
-          waClient,
-          clientLabel,
-          args: [pool, userModel],
-          invalidStepMessage:
-            "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
-          failureMessage:
-            "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
-        });
-        return;
-      }
-      if (/^2$/.test(text.trim())) {
-        delete operatorOptionSessions[chatId];
-        if (!allowUserMenu) {
-          return;
-        }
-        const pengirim = chatId.replace(/[^0-9]/g, "");
-        const userByWA = await userModel.findUserByWhatsApp(pengirim);
-        const salam = getGreeting();
-        if (userByWA) {
-          userMenuContext[chatId] = {
-            step: "confirmUserByWaUpdate",
-            user_id: userByWA.user_id,
-          };
-          const msg = `${salam}, Bapak/Ibu\n${formatUserSummary(userByWA)}\n\nApakah Anda ingin melakukan perubahan data?\nBalas *ya* untuk memulai update atau *tidak* untuk melewati.`;
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        } else {
-          userMenuContext[chatId] = { step: "inputUserId" };
-          const msg =
-            `${salam}! Nomor WhatsApp Anda belum terdaftar.` +
-            "\n\nBalas pesan ini dengan memasukan NRP Anda," +
-            "\n\n*Contoh Pesan Balasan : 87020990*";
-          await waClient.sendMessage(chatId, msg.trim());
-          setMenuTimeout(
-            chatId,
-            waClient,
-            shouldExpectQuickReply(userMenuContext[chatId])
-          );
-        }
-        return;
-      }
-      await waClient.sendMessage(
-        chatId,
-        "Balas *1* untuk Menu Operator atau *2* untuk perubahan data username."
-      );
-      setOperatorOptionTimeout(chatId);
-      return;
-    }
-
     // ===== Pilihan awal untuk nomor admin =====
     if (adminOptionSessions[chatId]) {
-      if (/^1$/.test(text.trim())) {
-        delete adminOptionSessions[chatId];
-        setSession(chatId, { menu: "clientrequest", step: "main" });
-        await waClient.sendMessage(
-          chatId,
-          `┏━━━ *MENU CLIENT CICERO* ━━━\n1️⃣ Manajemen Client & User\n2️⃣ Operasional Media Sosial\n3️⃣ Transfer & Laporan\n4️⃣ Administratif\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━\nKetik *angka* menu, atau *batal* untuk keluar.`
-        );
-        return;
-      }
-      if (/^2$/.test(text.trim())) {
-        delete adminOptionSessions[chatId];
-        const started = await startAdminOprRequestSelection({
-          chatId,
-          waClient,
-          clientLabel,
-        });
-        if (!started) {
-          return;
-        }
-        return;
-      }
       if (/^3$/.test(text.trim())) {
         delete adminOptionSessions[chatId];
         if (!allowUserMenu) {
@@ -2295,48 +2037,11 @@ export function createHandleMessage(waClient, options = {}) {
       }
       await waClient.sendMessage(
         chatId,
-        "Balas *1* untuk Menu Client, *2* untuk Menu Operator, atau *3* untuk perubahan data user."
+        "Balas *3* untuk perubahan data user."
       );
       setAdminOptionTimeout(chatId);
       return;
     }
-
-  // ===== Handler Menu Operator =====
-  if (session && session.menu === "oprrequest") {
-    // Routing pesan sesuai langkah/session operator (tambah user, update status, dst)
-    await runMenuHandler({
-      handlers: oprRequestHandlers,
-      menuName: "oprrequest",
-      session,
-      chatId,
-      text,
-      waClient,
-      clientLabel,
-      args: [pool, userModel],
-      invalidStepMessage:
-        "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
-      failureMessage:
-        "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
-    });
-    return;
-  }
-
-  if (session && session.menu === "dirrequest") {
-    await runMenuHandler({
-      handlers: dirRequestHandlers,
-      menuName: "dirrequest",
-      session,
-      chatId,
-      text,
-      waClient,
-      clientLabel,
-      invalidStepMessage:
-        "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
-      failureMessage:
-        "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
-    });
-    return;
-  }
 
   if (session && session.menu === "wabotditbinmas") {
     await wabotDitbinmasHandlers[session.step || "main"](
@@ -2345,175 +2050,6 @@ export function createHandleMessage(waClient, options = {}) {
       text,
       waClient
     );
-    return;
-  }
-
-  // ===== MULAI Menu Operator dari command manual =====
-  if (text.toLowerCase() === "oprrequest") {
-    if (isAdminWhatsApp(chatId)) {
-      await startAdminOprRequestSelection({
-        chatId,
-        waClient,
-        clientLabel,
-      });
-      return;
-    }
-    
-    const waId =
-      userWaNum.startsWith("62") ? userWaNum : "62" + userWaNum.replace(/^0/, "");
-    const operator = await findByOperator(waId);
-    const superAdmin = operator ? null : await findBySuperAdmin(waId);
-    
-    // Check if user has same client_id as any admin (LID check)
-    const hasSameLidAsAdmin = !operator && !superAdmin 
-      ? await hasSameClientIdAsAdmin(waId, pool.query)
-      : false;
-    
-    if (!operator && !superAdmin && !hasSameLidAsAdmin) {
-      // User not found in client table - offer linking options
-      const orgClients = await clientService.findAllClientsByType("org");
-      const availableClients = (orgClients || [])
-        .filter((client) => client?.client_id && client?.client_status)
-        .map((client) => ({
-          client_id: String(client.client_id).toUpperCase(),
-          nama: client.nama || client.client_id,
-        }));
-      
-      if (availableClients.length === 0) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Tidak ada client bertipe ORG yang aktif untuk menu operator."
-        );
-        return;
-      }
-      
-      // Start account linking flow
-      setSession(chatId, {
-        menu: "oprrequest",
-        step: "link_choose_role",
-        opr_clients: availableClients,
-        linking_wa_id: waId,
-      });
-      
-      const msg = `🔗 *Penautan Akun Operator/Super Admin*
-
-Nomor Anda belum terdaftar di sistem. Silakan pilih peran yang ingin Anda tautkan:
-
-1️⃣ Operator
-2️⃣ Super Admin
-
-Ketik *angka* untuk memilih, atau *batal* untuk keluar.`;
-      
-      await waClient.sendMessage(chatId, msg);
-      return;
-    }
-    
-    // If user has same LID as admin, show ORG client selection
-    if (hasSameLidAsAdmin && !operator && !superAdmin) {
-      const orgClients = await clientService.findAllClientsByType("org");
-      const availableClients = (orgClients || [])
-        .filter((client) => client?.client_id && client?.client_status)
-        .map((client) => ({
-          client_id: String(client.client_id).toUpperCase(),
-          nama: client.nama || client.client_id,
-        }));
-      
-      if (availableClients.length === 0) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Tidak ada client bertipe ORG yang aktif untuk menu operator."
-        );
-        return;
-      }
-      
-      setSession(chatId, {
-        menu: "oprrequest",
-        step: "choose_client",
-        opr_clients: availableClients,
-      });
-      
-      await runMenuHandler({
-        handlers: oprRequestHandlers,
-        menuName: "oprrequest",
-        session: getSession(chatId),
-        chatId,
-        text: "",
-        waClient,
-        clientLabel,
-        args: [pool, userModel],
-        invalidStepMessage:
-          "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
-    
-    setSession(chatId, {
-      menu: "oprrequest",
-      step: "main",
-      selected_client_id: superAdmin?.client_id || undefined,
-    });
-    await runMenuHandler({
-      handlers: oprRequestHandlers,
-      menuName: "oprrequest",
-      session: getSession(chatId),
-      chatId,
-    text: `┏━━━ *MENU OPERATOR CICERO* ━━━┓
-👮‍♂️  Akses khusus operator client.
-
-1️⃣ Manajemen User
-2️⃣ Manajemen Amplifikasi
-3️⃣ Manajemen Engagement
-
-Ketik *angka menu* di atas, atau *batal* untuk keluar.
-┗━━━━━━━━━━━━━━━━━━━━━━━━━┛`,
-      waClient,
-      clientLabel,
-      args: [pool, userModel],
-      invalidStepMessage:
-        "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
-      failureMessage:
-        "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
-    });
-    return;
-  }
-
-  if (text.toLowerCase() === "dirrequest") {
-    // Allow access from all WhatsApp numbers
-    const directorateClients =
-      await clientService.findAllActiveDirektoratClients();
-    const activeDirectorateClients = (directorateClients || []).map((client) => ({
-      client_id: (client.client_id || "").toUpperCase(),
-      nama: client.nama || client.client_id || "",
-    }));
-
-    if (!activeDirectorateClients.length) {
-      await waClient.sendMessage(
-        chatId,
-        "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
-      );
-      return;
-    }
-
-    setSession(chatId, {
-      menu: "dirrequest",
-      step: "choose_client",
-      dir_clients: activeDirectorateClients,
-    });
-    await runMenuHandler({
-      handlers: dirRequestHandlers,
-      menuName: "dirrequest",
-      session: getSession(chatId),
-      chatId,
-      text: "",
-      waClient,
-      clientLabel,
-      invalidStepMessage:
-        "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
-      failureMessage:
-        "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
-    });
     return;
   }
 
@@ -2540,46 +2076,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     await wabotDitbinmasHandlers.main(getSession(chatId), chatId, "", waClient);
     return;
   }
-
-  const handledComplaint = await handleComplaintMessageIfApplicable({
-    text,
-    allowUserMenu,
-    session,
-    isAdmin,
-    initialIsMyContact,
-    senderId,
-    chatId,
-    adminOptionSessions,
-    setSession,
-    getSession,
-    waClient,
-    pool,
-    userModel,
-  });
-  if (handledComplaint) {
-    return;
-  }
-
-  const handledClientRequestSession = await handleClientRequestSessionStep({
-    session,
-    chatId,
-    text,
-    waClient,
-    clientLabel,
-    pool,
-    userModel,
-    clientService,
-    migrateUsersFromFolder,
-    checkGoogleSheetCsvStatus,
-    importUsersFromGoogleSheet,
-    fetchAndStoreInstaContent,
-    fetchAndStoreTiktokContent,
-    formatClientData,
-    handleFetchLikesInstagram,
-    handleFetchKomentarTiktokBatch,
-  });
-  if (handledClientRequestSession) return;
-
 
     // ===== Handler Menu User Interaktif Step Lanjut =====
     if (userMenuContext[chatId]) {
@@ -2629,39 +2125,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         return;
       }
     }
-
-  // ===== Handler Menu Client =====
-  if (text.toLowerCase() === "clientrequest") {
-    setSession(chatId, { menu: "clientrequest", step: "main" });
-    await runMenuHandler({
-      handlers: clientRequestHandlers,
-      menuName: "clientrequest",
-      session: getSession(chatId),
-      chatId,
-      text: "",
-      waClient,
-      clientLabel,
-      args: [
-        pool,
-        userModel,
-        clientService,
-        migrateUsersFromFolder,
-        checkGoogleSheetCsvStatus,
-        importUsersFromGoogleSheet,
-        fetchAndStoreInstaContent,
-        fetchAndStoreTiktokContent,
-        formatClientData,
-        handleFetchLikesInstagram,
-        handleFetchKomentarTiktokBatch,
-      ],
-      invalidStepMessage:
-        "⚠️ Sesi menu client tidak dikenali. Ketik *clientrequest* ulang atau *batal*.",
-      failureMessage:
-        "❌ Terjadi kesalahan pada menu client. Ketik *clientrequest* ulang untuk memulai kembali.",
-    });
-    return;
-  }
-
 
   // ========== VALIDASI ADMIN COMMAND ==========
   if (
@@ -4211,22 +3674,6 @@ const handleUserMessage = createHandleMessage(waUserClient, {
   clientLabel: "[WA-USER]",
 });
 
-async function processGatewayBulkDeletion(chatId, text) {
-  const existingSession = getSession(chatId);
-  const session =
-    existingSession?.menu === "clientrequest"
-      ? existingSession
-      : { menu: "clientrequest", step: "bulkStatus_process" };
-  setSession(chatId, session);
-  await processBulkDeletionRequest({
-    session: getSession(chatId),
-    chatId,
-    text,
-    waClient: waGatewayClient,
-    userModel,
-  });
-}
-
 const gatewayAllowedGroupIds = new Set();
 const gatewayAllowedGroupState = {
   isLoaded: false,
@@ -4344,48 +3791,12 @@ export async function handleGatewayMessage(msg) {
 
   const senderId = msg.author || chatId;
   const normalizedText = text.trim().toLowerCase();
-  const isGatewayForward = isGatewayComplaintForward({
-    senderId,
-    text,
-    allowImplicitGatewayForward: true,
-  });
   const isAdmin = isAdminWhatsApp(senderId);
-  const initialIsMyContact =
-    typeof msg.isMyContact === "boolean" ? msg.isMyContact : null;
   const session = getSession(chatId);
 
   if (session?.menu === "satbinmasofficial_gateway") {
     const lowered = normalizedText;
     const targetClientId = session.targetClientId;
-
-    if (lowered === "ya") {
-      const nextSession = {
-        menu: "clientrequest",
-        step: "satbinmasOfficial_promptRole",
-        selected_client_id: targetClientId,
-        satbinmasOfficialDraft: {
-          ...(session.satbinmasOfficialDraft || {}),
-          targetClientId,
-        },
-      };
-
-      setSession(chatId, nextSession);
-      await runMenuHandler({
-        handlers: clientRequestHandlers,
-        menuName: "clientrequest",
-        session: getSession(chatId),
-        chatId,
-        text: "",
-        waClient: waGatewayClient,
-        clientLabel: "[WA-GATEWAY]",
-        args: [pool, userModel, clientService],
-        invalidStepMessage:
-          "⚠️ Sesi menu client tidak dikenali. Ketik *clientrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu client. Ketik *clientrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
 
     if (lowered === "batal") {
       clearSession(chatId);
@@ -4404,36 +3815,7 @@ export async function handleGatewayMessage(msg) {
     return;
   }
 
-  const handledClientRequestSession = await handleClientRequestSessionStep({
-    session,
-    chatId,
-    text,
-    waClient: waGatewayClient,
-    clientLabel: "[WA-GATEWAY]",
-    pool,
-    userModel,
-    clientService,
-    migrateUsersFromFolder,
-    checkGoogleSheetCsvStatus,
-    importUsersFromGoogleSheet,
-    fetchAndStoreInstaContent,
-    fetchAndStoreTiktokContent,
-    formatClientData,
-    handleFetchLikesInstagram,
-    handleFetchKomentarTiktokBatch,
-  });
-  if (handledClientRequestSession) return;
-
   if (normalizedText.startsWith("#satbinmasofficial")) {
-    if (!isGatewayForward) {
-      await waGatewayClient.sendMessage(
-        chatId,
-        "❌ Permintaan ini hanya diproses untuk pesan yang diteruskan melalui WA Gateway."
-      );
-      return;
-    }
-
-    // Check if user is admin
     if (!senderId || !isAdminWhatsApp(senderId)) {
       await waGatewayClient.sendMessage(
         chatId,
@@ -4451,31 +3833,6 @@ export async function handleGatewayMessage(msg) {
       "Untuk sementara, silakan hubungi developer untuk konfigurasi akun resmi Satbinmas."
     );
     return;
-  }
-
-  if (isGatewayComplaintForward({ senderId, text })) {
-    console.log("[WA-GATEWAY] Skipped gateway-forwarded complaint message");
-    return;
-  }
-
-  const handledComplaint = await handleComplaintMessageIfApplicable({
-    text,
-    allowUserMenu: false,
-    session,
-    isAdmin,
-    initialIsMyContact,
-    senderId,
-    chatId,
-    adminOptionSessions,
-    setSession,
-    getSession,
-    waClient: waGatewayClient,
-    pool,
-    userModel,
-  });
-
-  if (!handledComplaint) {
-    await processGatewayBulkDeletion(chatId, text);
   }
 }
 
