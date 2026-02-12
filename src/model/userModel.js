@@ -419,7 +419,7 @@ export async function getUsersSocialByClient(clientId, roleFilter = null) {
 export async function findUserById(user_id) {
   const uid = normalizeUserId(user_id);
   const { rows } = await query(
-      `SELECT u.*,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1\n     GROUP BY u.user_id`,
+      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1\n     GROUP BY u.user_id, c.nama`,
     [uid]
   );
   return rows[0];
@@ -437,7 +437,7 @@ export async function findUserByIdAndClient(user_id, client_id, roleFilter = nul
   const uid = normalizeUserId(user_id);
   const { clause, params: clientParams } = await buildClientFilter(client_id, 'u', 2, roleFilter);
   const { rows } = await query(
-      `SELECT u.*,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1 AND ${clause}\n     GROUP BY u.user_id`,
+      `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.user_id=$1 AND ${clause}\n     GROUP BY u.user_id, c.nama`,
     [uid, ...clientParams]
   );
   return rows[0];
